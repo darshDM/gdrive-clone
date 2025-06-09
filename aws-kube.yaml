@@ -1,0 +1,62 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gdrive
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gdrive-api
+  namespace: gdrive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gdrive-api
+  template:
+    metadata:
+      labels:
+        app: gdrive-api
+    spec:
+      containers:
+      - name: gdrive-api
+        image: gdrive:latest # deploy image to amazon ecr and use here
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gdrive-api
+  namespace: gdrive
+spec:
+  selector:
+    app: gdrive-api
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: NodePort
+---
+# Ingress is more of rule book and the ingress controller is the one enforcing the rules.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gdrive-api
+  namespace: gdrive
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: gdrive-api
+              port:
+                number: 8000
