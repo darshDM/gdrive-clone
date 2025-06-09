@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: gdrive-api
-        image: gdrive:latest # deploy image to amazon ecr and use here
+        image: <ecr/registry url>gdrive:latest # deploy image to amazon ecr and use here
         ports:
         - containerPort: 8000
 ---
