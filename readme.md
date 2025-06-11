@@ -1,10 +1,10 @@
-# 📁 GDrive API (Minimal GDrive-like File Storage Service)
+# GDrive API (Minimal GDrive-like File Storage Service)
 
 A simple file storage API written in Go with user authentication and file upload support, using SQLite. This project follows a `store → service → handler` architecture and is containerized using Docker. It's deployed to AWS EKS via Kubernetes.
 
 ---
 
-## 🧱 Project Structure
+## Project Structure
 
 ```
 .
@@ -19,18 +19,14 @@ A simple file storage API written in Go with user authentication and file upload
 
 ---
 
-## 🚀 Features
+## Basic Features
 
 - JWT-based user authentication
 - SQLite for lightweight storage
 - Upload and list user files
-- Storage quota tracking
-- RESTful API
-- Docker and Kubernetes ready for deployment
-
 ---
 
-## 🐳 Docker: Build & Run
+## Docker: Build & Run
 
 ### Build Docker Image
 ```bash
@@ -46,7 +42,21 @@ docker run -p 8000:8000 gdrive-api
 
 ## ☸️ Kubernetes on AWS (EKS)
 
-### 1. Build and Push Docker Image to Amazon ECR
+### 1. Update Kubeconfig
+```bash
+aws eks update-kubeconfig --name <cluster-name> --region <region>
+```
+
+### 2. Create Fargate Profile (Optional)
+```bash
+eksctl create fargateprofile \
+--cluster <cluster-name> \
+--region <region> \
+--name alb-sample-app \
+--namespace game-2048
+```
+
+### 3. Build & Push Docker Image to Amazon ECR
 ```bash
 # Authenticate to ECR
 aws ecr get-login-password | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.<region>.amazonaws.com
@@ -58,29 +68,62 @@ docker tag gdrive-api:latest <aws_account_id>.dkr.ecr.<region>.amazonaws.com/gdr
 docker push <aws_account_id>.dkr.ecr.<region>.amazonaws.com/gdrive:latest
 ```
 
-### 2. Update Image URL in `aws-kube.yaml`
+### 4. Update Image URL in `aws-kube.yaml`
 ```yaml
 image: <aws_account_id>.dkr.ecr.<region>.amazonaws.com/gdrive:latest
 ```
 
-### 3. Apply Kubernetes Resources
+### 5. Deploy to Cluster
 ```bash
 kubectl apply -f aws-kube.yaml
 ```
 
-This will create:
-- Namespace: `gdrive`
-- Deployment: `gdrive-api`
-- Service: NodePort (8000)
-- Ingress (for ALB)
+---
 
-Make sure your EKS cluster has:
-- ALB Ingress Controller installed
-- IAM permissions set for ingress controller
+## Setup ALB Ingress Controller
+
+### 1. Download IAM Policy
+```bash
+curl -O https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.11.0/docs/install/iam_policy.json
+```
+
+### 2. Create IAM Policy
+```bash
+aws iam create-policy \
+--policy-name AWSLoadBalancerControllerIAMPolicy \
+--policy-document file://iam_policy.json
+```
+
+### 3. Create IAM Role and Service Account
+```bash
+eksctl create iamserviceaccount \
+--cluster=<your-cluster-name> \
+--namespace=kube-system \
+--name=aws-load-balancer-controller \
+--role-name AmazonEKSLoadBalancerControllerRole \
+--attach-policy-arn=arn:aws:iam::<your-aws-account-id>:policy/AWSLoadBalancerControllerIAMPolicy \
+--approve
+```
+
+### 4. Add ALB Helm Repo
+```bash
+helm repo add eks https://aws.github.io/eks-charts
+```
+
+### 5. Install ALB Controller via Helm
+```bash
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=<your-cluster-name> \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set region=<region> \
+  --set vpcId=<your-vpc-id>
+```
 
 ---
 
-## 🔐 API Endpoints (with `curl`)
+## API Endpoints (with `curl`)
 
 > Replace `<token>` with your JWT token and `<file.ext>` with your file.
 
@@ -106,7 +149,7 @@ curl -X GET localhost:8000/v1/health
 
 ---
 
-## ⚙️ Environment & Notes
+## Environment & Notes
 
 - Uses `sqlite3` installed in Docker image
 - No external DB needed
